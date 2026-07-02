@@ -5,13 +5,14 @@ import datetime
 import subprocess
 import re
 import logging
+import gzip
 from functools import wraps
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import pymysql
 from dotenv import load_dotenv
 try:
-    from werkzeug.security import check_password_hash
+    from werkzeug.security import check_password_hash, generate_password_hash
     HASHING_AVAILABLE = True
 except ImportError:
     HASHING_AVAILABLE = False
@@ -346,6 +347,21 @@ def execute_backup(instance, backup_folder, conn, cursor, location_type='Local D
         except OSError:
             pass
 
+    # Compress the backup file with gzip
+    compressed_file = backup_file + '.gz'
+    try:
+        if os.path.exists(backup_file) and os.path.getsize(backup_file) > 0:
+            with open(backup_file, 'rb') as f_in:
+                with gzip.open(compressed_file, 'wb') as f_out:
+                    f_out.writelines(f_in)
+            original_size = os.path.getsize(backup_file)
+            compressed_size = os.path.getsize(compressed_file)
+            os.remove(backup_file)
+            backup_file = compressed_file
+            logging.info(f"Compressed backup: {backup_file} ({format_file_size(original_size)} -> {format_file_size(compressed_size)})")
+    except OSError as err:
+        logging.warning(f"Compression failed, keeping original file: {err}")
+
     elapsed_seconds = time.time() - start_time
     minutes = int(elapsed_seconds // 60)
     seconds = int(elapsed_seconds % 60)
@@ -375,7 +391,7 @@ def execute_backup(instance, backup_folder, conn, cursor, location_type='Local D
     remark_str = (
         f"Backup #{backup_count} completed at {backup_date_str}. "
         f"Source: {db_host} ({instance_name}). "
-        f"File: {backup_file} ({size_str}, {duration_str})."
+        f"File: {backup_file} ({size_str}, {duration_str}, gzip compressed)."
         if not backup_error
         else f"Backup #{backup_count} completed with warning at {backup_date_str}: {backup_error[:200]}"
     )

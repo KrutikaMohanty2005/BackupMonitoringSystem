@@ -410,6 +410,8 @@ if (instancesListContainer) {
 // =============================================================================
 // STATS
 // =============================================================================
+let statusChart = null;
+
 async function loadStats() {
     try {
         const res = await fetch('/api/stats');
@@ -420,9 +422,48 @@ async function loadStats() {
         document.getElementById('connectedCount').textContent    = stats.connected        ?? 0;
         document.getElementById('disconnectedCount').textContent = stats.disconnected     ?? 0;
         document.getElementById('backupCount').textContent       = stats.total_backups    ?? 0;
+
+        renderStatusChart(stats.connected ?? 0, stats.disconnected ?? 0);
     } catch (err) {
         console.error('Failed to load stats:', err);
     }
+}
+
+function renderStatusChart(connected, disconnected) {
+    const canvas = document.getElementById('statusChart');
+    if (!canvas) return;
+
+    if (statusChart) {
+        statusChart.destroy();
+    }
+
+    statusChart = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels: ['Connected', 'Disconnected'],
+            datasets: [{
+                data: [connected, disconnected],
+                backgroundColor: ['#10b981', '#ef4444'],
+                borderWidth: 0,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 12,
+                        usePointStyle: true,
+                        pointStyleWidth: 10,
+                        font: { size: 11, family: 'Inter' }
+                    }
+                }
+            }
+        }
+    });
 }
 
 // =============================================================================

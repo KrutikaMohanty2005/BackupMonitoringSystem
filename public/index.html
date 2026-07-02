@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -84,6 +85,9 @@
             <div class="stat-card" id="backupCard">
                 <h4>Total Backups</h4>
                 <span id="backupCount">0</span>
+            </div>
+            <div class="stat-card chart-card">
+                <canvas id="statusChart" width="200" height="200"></canvas>
             </div>
         </div>
 

@@ -144,6 +144,19 @@ body {
     line-height: 1;
 }
 
+.chart-card {
+    cursor: default;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 220px;
+}
+
+.chart-card:hover {
+    transform: none;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.07);
+}
+
 /* ==========================================================================
    LAYOUT
    ========================================================================== */

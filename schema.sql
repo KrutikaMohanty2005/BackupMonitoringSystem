@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Insert a default admin user
-INSERT IGNORE INTO users (id, username, password) VALUES (1, 'admin', 'admin123');
+INSERT IGNORE INTO users (id, username, password) VALUES (1, 'admin', 'scrypt:32768:8:1$f4vIkf3mb2V3y7Xh$bae2cf829534a64ab592649f26825bad7ef02d775b6388ed623c3750bdc8cf7ba8679ac6dc885ac6a0b04a6a78346114414383e1a68ef3506a560c72f95a4cf6');
 
 -- 2. Instances Table
 CREATE TABLE IF NOT EXISTS instances (
