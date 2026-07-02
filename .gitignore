@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+*.log
+DB_CONFIG.py
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

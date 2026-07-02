@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Backup Monitoring System – centralized dashboard to monitor, manage, and schedule database backups.">
+    <title>Backup Monitoring System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+    <!-- Login Screen -->
+    <div id="login-container" class="login-wrapper">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                </div>
+                <h1>Backup Monitoring</h1>
+                <p>Access the centralized backup status portal</p>
+            </div>
+            <form id="login-form">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter username" required autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter password" required
+                        autocomplete="current-password">
+                </div>
+                <div class="login-options">
+                    <label class="remember-me">
+                        <input type="checkbox"> Remember me
+                    </label>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+                <button type="submit" class="btn-submit">Sign In</button>
+                <div id="error-message" class="error-message hidden">Invalid username or password.</div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard Content (hidden by default) -->
+    <div id="dashboard-container" class="hidden">
+
+        <header class="dashboard-header">
+            <h2>Backup Monitoring System</h2>
+            <button id="btn-logout" class="logout-btn">Logout</button>
+        </header>
+
+        <nav class="tabs">
+            <button class="active" data-tab="home">Home</button>
+            <button data-tab="add-instance">Add New Instance</button>
+        </nav>
+
+        <!-- Stat Cards -->
+        <div class="stats-container">
+            <div class="stat-card" id="totalCard">
+                <h4>Total Instances</h4>
+                <span id="totalInstances">0</span>
+            </div>
+            <div class="stat-card" id="connectedCard">
+                <h4>Connected</h4>
+                <span id="connectedCount">0</span>
+            </div>
+            <div class="stat-card" id="disconnectedCard">
+                <h4>Disconnected</h4>
+                <span id="disconnectedCount">0</span>
+            </div>
+            <div class="stat-card" id="backupCard">
+                <h4>Total Backups</h4>
+                <span id="backupCount">0</span>
+            </div>
+        </div>
+
+        <!-- Filtered Results Table (shown when a stat card is clicked) -->
+        <div id="resultSection" class="hidden">
+            <div class="result-section-header">
+                <h3 id="resultTitle"></h3>
+                <button class="result-close-btn" id="btn-close-results" aria-label="Close results">&times;</button>
+            </div>
+            <table id="resultTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>IP</th>
+                        <th>Database</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Home View -->
+        <div id="home-view" class="container dashboard-subview">
+
+            <!-- Left Sidebar -->
+            <aside class="sidebar">
+                <h3>Instances</h3>
+                <div id="instances-list">
+                    <div class="loading-text">Loading instances...</div>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main>
+
+                <!-- Instance Details -->
+                <section class="card">
+                    <h3>Instance Details</h3>
+
+                    <div class="details-grid">
+
+                        <div>
+                            <label for="detail-name">Instance Name</label>
+                            <input type="text" id="detail-name" value="">
+                        </div>
+
+                        <div>
+                            <label for="detail-duration">Last Backup Duration</label>
+                            <input type="text" id="detail-duration" value="" readonly>
+                        </div>
+
+                        <div>
+                            <label for="detail-db-type">Database Type</label>
+                            <select id="detail-db-type">
+                                <option value="MySQL">MySQL</option>
+                                <option value="Oracle">Oracle</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="detail-size">Last Backup File Size</label>
+                            <input type="text" id="detail-size" value="" readonly>
+                        </div>
+
+                        <div>
+                            <label for="detail-ip">Instance IP</label>
+                            <input type="text" id="detail-ip" value="">
+                        </div>
+
+                        <div>
+                            <label for="detail-port">Port Number</label>
+                            <input type="number" id="detail-port" value="">
+                        </div>
+
+                        <div>
+                            <label for="detail-db-user">Database Username</label>
+                            <input type="text" id="detail-db-user" value="">
+                        </div>
+
+                        <div>
+                            <label for="detail-db-password">Database Password</label>
+                            <input type="password" id="detail-db-password" value="">
+                        </div>
+
+                        <div>
+                            <label for="detail-db-name">Database Name</label>
+                            <input type="text" id="detail-db-name" value="">
+                        </div>
+
+                        <div class="status-field">
+                            <label for="detail-status">Status</label>
+                            <div class="status-pill">
+                                <span id="detail-status-dot" class="status-dot"></span>
+                                <input type="text" id="detail-status" value="" readonly>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="detail-response-time">Response Time</label>
+                            <input type="text" id="detail-response-time" value="" readonly>
+                        </div>
+
+                        <div>
+                            <label for="detail-downtime">Last Down Time</label>
+                            <input type="text" id="detail-downtime" value="" readonly>
+                        </div>
+
+                        <div>
+                            <label for="detail-last-checked">Last Checked</label>
+                            <input type="text" id="detail-last-checked" value="" readonly>
+                        </div>
+
+                        <div>
+                            <label for="detail-date">Last Backup Date</label>
+                            <input type="text" id="detail-date" value="" readonly>
+                        </div>
+
+                        <div>
+                            <label for="detail-next-scheduled">Next Scheduled Backup</label>
+                            <input type="text" id="detail-next-scheduled" value="" readonly>
+                        </div>
+
+                        <div>
+                            <label for="detail-location">Backup Location</label>
+                            <input type="text" id="detail-location" value="" readonly>
+                        </div>
+
+                        <div>
+                            <label for="detail-backup-type">Last Backup Type</label>
+                            <input type="text" id="detail-backup-type" value="" readonly>
+                        </div>
+
+                        <div class="span-2">
+                            <label for="detail-remark">Last Backup Remark</label>
+                            <textarea id="detail-remark"></textarea>
+                        </div>
+
+                    </div>
+
+                    <div class="details-actions">
+                        <button type="button" id="btn-delete-instance" class="btn danger">Delete Instance</button>
+                        <button type="button" id="btn-save-details" class="btn primary">Save Changes</button>
+                    </div>
+                </section>
+
+                <!-- Configure Backup -->
+                <section class="card">
+                    <h3>Configure Backup</h3>
+
+                    <div class="backup-sections">
+
+                        <!-- Schedule Backup -->
+                        <div class="backup-box">
+                            <h4>Schedule Backup</h4>
+
+                            <label for="schedule-location">Backup Location</label>
+                            <select id="schedule-location">
+                                <option value="Local Drive">Local Drive</option>
+                                <option value="Google Drive">Google Drive</option>
+                                <option value="File Server">File Server</option>
+                            </select>
+
+                            <label for="schedule-path">Path</label>
+                            <input type="text" id="schedule-path" placeholder="/tmp/backups" value="/tmp/backups" readonly>
+
+                            <label for="schedule-datetime">Backup Date &amp; Time</label>
+                            <input type="datetime-local" id="schedule-datetime">
+
+                            <button type="button" id="btn-schedule-backup" class="btn primary">
+                                Schedule Backup
+                            </button>
+
+                            <p class="note">
+                                Note: If one backup is scheduled then another backup can't be scheduled.
+                            </p>
+                        </div>
+
+                        <!-- Backup Now -->
+                        <div class="backup-box">
+                            <h4>Backup Now</h4>
+
+                            <label for="backup-now-location">Backup Location</label>
+                            <select id="backup-now-location">
+                                <option value="Local Drive">Local Drive</option>
+                                <option value="Google Drive">Google Drive</option>
+                                <option value="File Server">File Server</option>
+                            </select>
+
+                            <label for="backup-now-path">Path</label>
+                            <input type="text" id="backup-now-path" placeholder="/tmp/backups" value="/tmp/backups" readonly>
+
+                            <button type="button" id="btn-backup-now" class="btn primary">
+                                Backup Now
+                            </button>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- Backup History -->
+                <section class="card" id="backup-history-section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <h3>Backup History</h3>
+                        <button type="button" id="btn-refresh-history" class="btn" style="padding:6px 14px;font-size:12px;">Refresh</button>
+                    </div>
+                    <div id="backup-history-container" style="max-height:300px;overflow-y:auto;">
+                        <p style="color:#94a3b8;font-size:13px;">Select an instance to view backup history.</p>
+                    </div>
+                </section>
+
+            </main>
+
+        </div>
+
+        <!-- Add New Instance Modal -->
+        <div id="add-instance-view" class="dashboard-subview hidden">
+            <div class="add-instance-card">
+                <button type="button" class="modal-close" id="btn-close-modal" aria-label="Close modal">&times;</button>
+                <h3>Add New Instance</h3>
+                <form id="add-instance-form">
+                    <div class="form-row">
+                        <label for="new-instance-name">Instance Name</label>
+                        <input type="text" id="new-instance-name" placeholder="ICARD" required>
+                    </div>
+                    <div class="form-row">
+                        <label for="new-db-type">Database Type</label>
+                        <select id="new-db-type" required>
+                            <option value="">MySQL / Oracle</option>
+                            <option value="MySQL">MySQL</option>
+                            <option value="Oracle">Oracle</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label for="new-instance-ip">Instance IP</label>
+                        <input type="text" id="new-instance-ip" placeholder="10.180.18.2" required>
+                    </div>
+                    <div class="form-row">
+                        <label for="new-port-number">Port Number</label>
+                        <input type="number" id="new-port-number" placeholder="3306" required>
+                    </div>
+                    <div class="form-row">
+                        <label for="new-db-user">Database Username</label>
+                        <input type="text" id="new-db-user" placeholder="root" required>
+                    </div>
+                    <div class="form-row">
+                        <label for="new-db-password">Database Password</label>
+                        <input type="password" id="new-db-password" placeholder="Enter password" required>
+                    </div>
+                    <div class="form-row">
+                        <label for="new-db-name">Database Name</label>
+                        <input type="text" id="new-db-name" placeholder="icard_db" required>
+                    </div>
+                    <div class="form-row form-row-top">
+                        <label for="new-remark">Remarks</label>
+                        <textarea id="new-remark" placeholder="e.g. Production ERP database, critical system..." rows="3"></textarea>
+                    </div>
+                    <div id="connection-result" class="hidden" style="margin-bottom:16px;"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn" id="btn-check-connection">Check Connection</button>
+                        <button type="submit" class="btn primary" id="btn-add-submit">Submit</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div> <!-- dashboard-container -->
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logout-confirm-modal" class="hidden modal-overlay">
+        <div class="modal-card">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to logout?</p>
+            <div class="modal-buttons">
+                <button id="btn-logout-cancel" class="btn">Cancel</button>
+                <button id="btn-logout-confirm" class="btn danger">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="hidden modal-overlay">
+        <div class="modal-card">
+            <h3>Delete Instance</h3>
+            <p>Are you sure you want to permanently delete this instance? All associated backups will also be removed.</p>
+            <div class="modal-buttons">
+                <button id="btn-delete-cancel" class="btn">Cancel</button>
+                <button id="btn-delete-confirm" class="btn danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
