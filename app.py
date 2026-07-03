@@ -468,11 +468,6 @@ def home():
     return send_from_directory('public', 'index.html')
 
 
-@app.route('/<path:path>')
-def static_files(path):
-    return send_from_directory('public', path)
-
-
 # ============================================================================
 # ROUTE: LOGIN
 # ============================================================================
@@ -926,6 +921,7 @@ def get_backups():
 
 @app.route('/api/backups/<int:backup_id>', methods=['DELETE'])
 def delete_backup(backup_id):
+    logging.info(f"DELETE request received for backup_id={backup_id}")
     conn = get_db_connection()
     db_error = check_db(conn)
     if db_error:
