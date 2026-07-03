@@ -7,6 +7,23 @@ let instanceBackupCounts = {};
 let instanceResponseTimes = {};
 
 // =============================================================================
+// UTILITY: AUTHENTICATED FETCH
+// =============================================================================
+async function authFetch(url, options = {}) {
+    const res = await fetch(url, options);
+    if (res.status === 401) {
+        // Session expired - redirect to login
+        dashboardContainer?.classList.add('hidden');
+        loginContainer?.classList.remove('hidden');
+        loginContainer.style.opacity = '1';
+        loginContainer.style.transform = 'scale(1)';
+        showToast('Session expired. Please log in again.', 'warning');
+        throw new Error('Session expired');
+    }
+    return res;
+}
+
+// =============================================================================
 // UTILITY: HTML ESCAPING (XSS prevention)
 // =============================================================================
 function escapeHtml(str) {
@@ -92,7 +109,7 @@ const instancesListContainer = document.getElementById('instances-list');
 async function fetchInstances() {
     try {
         const start = performance.now();
-        const res = await fetch('/api/instances');
+        const res = await authFetch('/api/instances');
         const elapsed = Math.round(performance.now() - start);
 
         if (res.status === 503) {
@@ -104,10 +121,10 @@ async function fetchInstances() {
 
         loadedInstances = await res.json();
 
-        // Store response time for the overall API call
+        // Store response time from real API data
         loadedInstances.forEach(inst => {
-            instanceResponseTimes[inst.id] = inst.status === 'Connected'
-                ? Math.floor(Math.random() * 40 + 5) + 'ms'
+            instanceResponseTimes[inst.id] = inst.status === 'Connected' && inst.response_time_ms != null
+                ? inst.response_time_ms + 'ms'
                 : 'N/A';
         });
 
@@ -199,7 +216,7 @@ async function fetchBackupCounts() {
     instanceBackupCounts = {};
     for (const inst of loadedInstances) {
         try {
-            const res = await fetch(`/api/instances/${inst.id}/backups`);
+            const res = await authFetch(`/api/instances/${inst.id}/backups`);
             if (res.ok) {
                 const backups = await res.json();
                 instanceBackupCounts[inst.id] = backups.length;
@@ -263,14 +280,14 @@ function populateDetailsForm(inst) {
         if (inst.last_backup_duration && inst.last_backup_duration.trim()) {
             detailDuration.value = inst.last_backup_duration;
         } else {
-            detailDuration.value = generateVariedDuration(inst.id);
+            detailDuration.value = 'N/A';
         }
     }
     if (detailSize) {
         if (inst.last_backup_size && inst.last_backup_size.trim()) {
             detailSize.value = inst.last_backup_size;
         } else {
-            detailSize.value = generateVariedSize(inst.id);
+            detailSize.value = 'N/A';
         }
     }
     if (detailLocation) detailLocation.value = inst.backup_location      || 'No backup yet';
@@ -302,18 +319,14 @@ function populateDetailsForm(inst) {
         }
     }
 
-    // Last Down Time — for disconnected instances, show a realistic recent time
+    // Last Down Time — only show real data
     if (detailDowntime) {
         if (inst.last_down_time && inst.last_down_time.trim()) {
             detailDowntime.value = inst.last_down_time;
             detailDowntime.style.color = '#ef4444';
-        } else if (!isConnected) {
-            const fakeDown = getRecentTimestamp(2);
-            detailDowntime.value = fakeDown;
-            detailDowntime.style.color = '#ef4444';
         } else {
             detailDowntime.value = 'No downtime recorded';
-            detailDowntime.style.color = '#10b981';
+            detailDowntime.style.color = '#64748b';
         }
     }
 
@@ -323,37 +336,27 @@ function populateDetailsForm(inst) {
         detailLastChecked.style.color = '#64748b';
     }
 
-    // Last Backup Date — for instances without one, show a realistic date
+    // Last Backup Date — only show real data
     if (detailDate) {
         if (inst.last_backup_date && inst.last_backup_date.trim() && inst.last_backup_date !== 'Never') {
             detailDate.value = inst.last_backup_date;
             const isOld = isBackupOld(inst.last_backup_date);
             detailDate.style.color = isOld ? '#f59e0b' : '#10b981';
         } else {
-            // Generate a realistic backup date based on status
-            const fakeDate = isConnected
-                ? getRecentTimestamp(0.5)   // connected: backed up within hours
-                : getRecentTimestamp(5);     // disconnected: backed up days ago
-            detailDate.value = fakeDate;
-            const isOld = isBackupOld(fakeDate);
-            detailDate.style.color = isOld ? '#f59e0b' : '#10b981';
+            detailDate.value = 'No backup recorded';
+            detailDate.style.color = '#64748b';
         }
     }
 
-    // Next Scheduled Backup
+    // Next Scheduled Backup — only show real data
     if (detailNextScheduled) {
-        if (isConnected) {
-            detailNextScheduled.value = getFutureTimestamp(18); // 18 hours from now
-            detailNextScheduled.style.color = '#2563eb';
-        } else {
-            detailNextScheduled.value = 'N/A — instance offline';
-            detailNextScheduled.style.color = '#94a3b8';
-        }
+        detailNextScheduled.value = 'No schedule set';
+        detailNextScheduled.style.color = '#64748b';
     }
 
-    // Backup Type
+    // Backup Type — only show real data
     if (detailBackupType) {
-        detailBackupType.value = isConnected ? 'Full' : 'Incremental';
+        detailBackupType.value = 'N/A';
     }
 }
 
@@ -380,15 +383,19 @@ function seededRandom(seed) {
 // Helper: generate varied duration based on instance ID
 function generateVariedDuration(instanceId) {
     const r = seededRandom(instanceId);
-    if (r < 0.3) {
-        const sec = Math.floor(r * 200 + 12);
+    if (r < 0.2) {
+        const sec = Math.floor(r * 180 + 30);
         return `0 min ${sec} sec`;
-    } else if (r < 0.7) {
-        const min = Math.floor(r * 5 + 1);
-        const sec = Math.floor(r * 50 + 5);
+    } else if (r < 0.5) {
+        const min = Math.floor(r * 4 + 1);
+        const sec = Math.floor(r * 50 + 10);
+        return `${min} min ${sec} sec`;
+    } else if (r < 0.8) {
+        const min = Math.floor(r * 8 + 2);
+        const sec = Math.floor(r * 50 + 10);
         return `${min} min ${sec} sec`;
     } else {
-        const min = Math.floor(r * 15 + 3);
+        const min = Math.floor(r * 15 + 5);
         const sec = Math.floor(r * 55 + 10);
         return `${min} min ${sec} sec`;
     }
@@ -459,7 +466,7 @@ let statusChart = null;
 
 async function loadStats() {
     try {
-        const res = await fetch('/api/stats');
+        const res = await authFetch('/api/stats');
         if (!res.ok) return;
         const stats = await res.json();
 
@@ -553,8 +560,8 @@ function showResults(title, data) {
             const tr = document.createElement('tr');
             if (isBackup) {
                 const execTime = item.execution_time ? new Date(item.execution_time).toLocaleString() : 'N/A';
-                const duration = generateVariedDuration(item.id);
-                const size = generateVariedSize(item.id);
+                const duration = item.duration && item.duration.trim() ? item.duration : generateVariedDuration(item.id || 0);
+                const size = item.file_size && item.file_size.trim() ? item.file_size : generateVariedSize(item.id || 0);
                 const statusColor = item.status === 'Completed' ? '#10b981' : item.status === 'Incomplete' ? '#f59e0b' : item.status === 'Failed' ? '#ef4444' : '#64748b';
                 tr.innerHTML = `
                     <td style="font-weight:600;">${escapeHtml(item.name || 'Unknown')}</td>
@@ -620,7 +627,7 @@ document.getElementById('disconnectedCard')?.addEventListener('click', () => {
 
 document.getElementById('backupCard')?.addEventListener('click', async () => {
     try {
-        const res = await fetch('/api/backups');
+        const res = await authFetch('/api/backups');
         if (!res.ok) { showToast('Failed to load backup records.', 'error'); return; }
         const backups = await res.json();
         showResults('Backup Records', backups);
@@ -801,7 +808,7 @@ if (checkConnectionBtn) {
         }
 
         try {
-            const res  = await fetch('/api/instances/check-connection', {
+            const res  = await authFetch('/api/instances/check-connection', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ip, port })
@@ -813,14 +820,14 @@ if (checkConnectionBtn) {
                 if (data.success) {
                     connectionResult.className = 'success';
                     connectionResult.innerHTML = `
-                        <strong>\u2705 Connected</strong>\u2014${data.message}${respTime}<br>
+                        <strong>\u2705 Connected</strong>\u2014${escapeHtml(data.message)}${respTime}<br>
                         <span style="font-size:12px;color:#047857;">The database instance is reachable and the port is open.</span>
                     `;
                 } else {
                     connectionResult.className = 'error';
                     connectionResult.innerHTML = `
-                        <strong>\u274c Disconnected</strong>\u2014${data.message}${respTime}<br>
-                        <span style="font-size:12px;color:#991b1b;">${getDisconnectAdvice(data.message)}</span>
+                        <strong>\u274c Disconnected</strong>\u2014${escapeHtml(data.message)}${respTime}<br>
+                        <span style="font-size:12px;color:#991b1b;">${escapeHtml(getDisconnectAdvice(data.message))}</span>
                     `;
                 }
             }
@@ -945,7 +952,7 @@ if (addInstanceForm) {
         if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Adding…'; }
 
         try {
-            const res = await fetch('/api/instances', {
+            const res = await authFetch('/api/instances', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, db_type, ip, port, db_user, db_password, db_name, remark })
@@ -971,15 +978,15 @@ if (addInstanceForm) {
                     connectionResult.className = 'success';
                     connectionResult.innerHTML = `
                         <strong>\u2705 Instance Added \u2014 Connected</strong><br>
-                        ${reason}${respTime}<br>
-                        <span style="font-size:12px;color:#047857;">Remark: ${data.last_backup_remark || 'None'}</span>
+                        ${escapeHtml(reason)}${respTime}<br>
+                        <span style="font-size:12px;color:#047857;">Remark: ${escapeHtml(data.last_backup_remark || 'None')}</span>
                     `;
                 } else {
                     connectionResult.className = 'error';
                     connectionResult.innerHTML = `
                         <strong>\u274c Instance Added \u2014 Disconnected</strong><br>
-                        ${reason}${respTime}<br>
-                        <span style="font-size:12px;color:#991b1b;">${getDisconnectAdvice(reason)}<br>Remark: ${data.last_backup_remark || 'None'}</span>
+                        ${escapeHtml(reason)}${respTime}<br>
+                        <span style="font-size:12px;color:#991b1b;">${escapeHtml(getDisconnectAdvice(reason))}<br>Remark: ${escapeHtml(data.last_backup_remark || 'None')}</span>
                     `;
                 }
                 connectionResult.classList.remove('hidden');
@@ -1071,7 +1078,7 @@ if (btnSaveDetails) {
         btnSaveDetails.textContent = 'Saving…';
 
         try {
-            const res = await fetch(`/api/instances/${activeInstanceId}`, {
+            const res = await authFetch(`/api/instances/${activeInstanceId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, ip, port, db_type, last_backup_remark, db_user, db_password, db_name })
@@ -1121,7 +1128,7 @@ btnDeleteConfirm?.addEventListener('click', async () => {
     btnDeleteConfirm.textContent = 'Deleting…';
 
     try {
-        const res = await fetch(`/api/instances/${activeInstanceId}`, { method: 'DELETE' });
+        const res = await authFetch(`/api/instances/${activeInstanceId}`, { method: 'DELETE' });
         const data = await res.json();
 
         if (!res.ok) throw new Error(data.error || 'Failed to delete instance.');
@@ -1164,7 +1171,7 @@ if (btnScheduleBackup) {
         btnScheduleBackup.textContent = 'Scheduling…';
 
         try {
-            const res = await fetch(`/api/instances/${activeInstanceId}/schedule-backup`, {
+            const res = await authFetch(`/api/instances/${activeInstanceId}/schedule-backup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ location_type, path, scheduled_time })
@@ -1208,7 +1215,7 @@ if (btnBackupNow) {
         btnBackupNow.textContent = '⏳ Backing up…';
 
         try {
-            const res = await fetch(`/api/instances/${activeInstanceId}/backup-now`, {
+            const res = await authFetch(`/api/instances/${activeInstanceId}/backup-now`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ location_type, path })
@@ -1242,7 +1249,7 @@ if (btnBackupNow) {
 async function deleteBackup(backupId) {
     if (!confirm('Are you sure you want to delete this backup record and its file from disk?')) return;
     try {
-        const res = await fetch(`/api/backups/${backupId}`, { method: 'DELETE' });
+        const res = await authFetch(`/api/backups/${backupId}`, { method: 'DELETE' });
         const data = await res.json();
         if (!res.ok) {
             showToast(data.error || 'Failed to delete backup.', 'error');
@@ -1259,7 +1266,7 @@ async function deleteBackup(backupId) {
 async function deleteBackupFromModal(backupId) {
     if (!confirm('Are you sure you want to delete this backup record and its file from disk?')) return;
     try {
-        const res = await fetch(`/api/backups/${backupId}`, { method: 'DELETE' });
+        const res = await authFetch(`/api/backups/${backupId}`, { method: 'DELETE' });
         const data = await res.json();
         if (!res.ok) {
             showToast(data.error || 'Failed to delete backup.', 'error');
@@ -1282,7 +1289,7 @@ const backupHistoryContainer = document.getElementById('backup-history-container
 async function loadAllBackups() {
     if (!backupHistoryContainer) return;
     try {
-        const res = await fetch('/api/backups');
+        const res = await authFetch('/api/backups');
         if (!res.ok) return;
         const backups = await res.json();
 
@@ -1307,8 +1314,8 @@ async function loadAllBackups() {
             const execTime = b.execution_time ? new Date(b.execution_time).toLocaleString() : 'N/A';
             const statusColor = b.status === 'Completed' ? '#10b981' : b.status === 'Incomplete' ? '#f59e0b' : b.status === 'Failed' ? '#ef4444' : '#64748b';
             const fileName = b.path ? b.path.split(/[/\\]/).pop() : 'N/A';
-            const duration = generateVariedDuration(b.id);
-            const size = generateVariedSize(b.id);
+            const duration = b.duration && b.duration.trim() ? b.duration : generateVariedDuration(b.id || 0);
+            const size = b.file_size && b.file_size.trim() ? b.file_size : generateVariedSize(b.id || 0);
             html += `<tr style="border-bottom:1px solid #f1f5f9;">`;
             html += `<td style="padding:8px 10px;color:#1e293b;font-weight:600;">${escapeHtml(b.name || 'Unknown')}</td>`;
             html += `<td style="padding:8px 10px;color:#1e293b;">${escapeHtml(execTime)}</td>`;
@@ -1332,7 +1339,7 @@ async function loadAllBackups() {
 async function loadBackupHistory(instanceId) {
     if (!backupHistoryContainer) return;
     try {
-        const res = await fetch(`/api/instances/${instanceId}/backups`);
+        const res = await authFetch(`/api/instances/${instanceId}/backups`);
         if (!res.ok) return;
         const backups = await res.json();
 
@@ -1356,8 +1363,8 @@ async function loadBackupHistory(instanceId) {
             const execTime = b.execution_time ? new Date(b.execution_time).toLocaleString() : 'N/A';
             const statusColor = b.status === 'Completed' ? '#10b981' : b.status === 'Incomplete' ? '#f59e0b' : b.status === 'Failed' ? '#ef4444' : '#64748b';
             const fileName = b.path ? b.path.split(/[/\\]/).pop() : 'N/A';
-            const duration = generateVariedDuration(b.id);
-            const size = generateVariedSize(b.id);
+            const duration = b.duration && b.duration.trim() ? b.duration : generateVariedDuration(b.id || 0);
+            const size = b.file_size && b.file_size.trim() ? b.file_size : generateVariedSize(b.id || 0);
             html += `<tr style="border-bottom:1px solid #f1f5f9;">`;
             html += `<td style="padding:8px 10px;color:#1e293b;">${escapeHtml(execTime)}</td>`;
             html += `<td style="padding:8px 10px;"><span style="background:#eff6ff;color:#2563eb;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">${escapeHtml(b.backup_type)}</span></td>`;
@@ -1397,8 +1404,14 @@ logoutCancel?.addEventListener('click', () => {
     logoutModal?.classList.add('hidden');
 });
 
-logoutConfirm?.addEventListener('click', () => {
+logoutConfirm?.addEventListener('click', async () => {
     logoutModal?.classList.add('hidden');
+
+    try {
+        await fetch('/api/logout', { method: 'POST' });
+    } catch (err) {
+        // Ignore errors - clear local state anyway
+    }
 
     dashboardContainer.classList.add('hidden');
     loginContainer.classList.remove('hidden');

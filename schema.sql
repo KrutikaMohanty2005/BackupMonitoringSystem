@@ -45,8 +45,17 @@ CREATE TABLE IF NOT EXISTS backups (
     backup_type VARCHAR(50) NOT NULL, -- 'Scheduled' or 'Immediate'
     location_type VARCHAR(100) NOT NULL, -- 'Local Drive', 'Google Drive', 'File Server'
     path VARCHAR(255) NOT NULL,
+    duration VARCHAR(50) DEFAULT NULL,
+    file_size VARCHAR(50) DEFAULT NULL,
     scheduled_time DATETIME DEFAULT NULL,
     execution_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) DEFAULT 'Completed',
     FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
 );
+
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_instances_status ON instances(status);
+CREATE INDEX IF NOT EXISTS idx_backups_instance_id ON backups(instance_id);
+CREATE INDEX IF NOT EXISTS idx_backups_execution_time ON backups(execution_time);
+CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
+CREATE INDEX IF NOT EXISTS idx_backups_scheduled ON backups(scheduled_time);
