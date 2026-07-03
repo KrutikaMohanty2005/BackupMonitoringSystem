@@ -68,46 +68,27 @@
             <button data-tab="add-instance">Add New Instance</button>
         </nav>
 
-        <!-- Stat Cards -->
-        <div class="stats-container">
-            <div class="stat-card" id="totalCard">
-                <h4>Total Instances</h4>
-                <span id="totalInstances">0</span>
+        <!-- Filtered Results Table (modal overlay) -->
+        <div id="resultSection" class="hidden modal-overlay">
+            <div class="modal-card" style="max-width:800px;width:95%;max-height:85vh;display:flex;flex-direction:column;">
+                <div class="result-section-header">
+                    <h3 id="resultTitle"></h3>
+                    <button class="result-close-btn" id="btn-close-results" aria-label="Close results">&times;</button>
+                </div>
+                <div style="overflow-y:auto;flex:1;">
+                    <table id="resultTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>IP</th>
+                                <th>Database</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultBody"></tbody>
+                    </table>
+                </div>
             </div>
-            <div class="stat-card" id="connectedCard">
-                <h4>Connected</h4>
-                <span id="connectedCount">0</span>
-            </div>
-            <div class="stat-card" id="disconnectedCard">
-                <h4>Disconnected</h4>
-                <span id="disconnectedCount">0</span>
-            </div>
-            <div class="stat-card" id="backupCard">
-                <h4>Total Backups</h4>
-                <span id="backupCount">0</span>
-            </div>
-            <div class="stat-card chart-card">
-                <canvas id="statusChart" width="200" height="200"></canvas>
-            </div>
-        </div>
-
-        <!-- Filtered Results Table (shown when a stat card is clicked) -->
-        <div id="resultSection" class="hidden">
-            <div class="result-section-header">
-                <h3 id="resultTitle"></h3>
-                <button class="result-close-btn" id="btn-close-results" aria-label="Close results">&times;</button>
-            </div>
-            <table id="resultTable">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>IP</th>
-                        <th>Database</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="resultBody"></tbody>
-            </table>
         </div>
 
         <!-- Home View -->
@@ -124,6 +105,29 @@
             <!-- Main Content -->
             <main>
 
+                <!-- Stat Cards & Chart -->
+                <div class="stats-container">
+                    <div class="stat-card" id="totalCard">
+                        <h4>Total Instances</h4>
+                        <span id="totalInstances">0</span>
+                    </div>
+                    <div class="stat-card" id="connectedCard">
+                        <h4>Connected</h4>
+                        <span id="connectedCount">0</span>
+                    </div>
+                    <div class="stat-card" id="disconnectedCard">
+                        <h4>Disconnected</h4>
+                        <span id="disconnectedCount">0</span>
+                    </div>
+                    <div class="stat-card" id="backupCard">
+                        <h4>Total Backups</h4>
+                        <span id="backupCount">0</span>
+                    </div>
+                    <div class="stat-card chart-card">
+                        <canvas id="statusChart" width="200" height="200"></canvas>
+                    </div>
+                </div>
+
                 <!-- Instance Details -->
                 <section class="card">
                     <h3>Instance Details</h3>
@@ -132,7 +136,7 @@
 
                         <div>
                             <label for="detail-name">Instance Name</label>
-                            <input type="text" id="detail-name" value="">
+                            <input type="text" id="detail-name" value="" maxlength="100" pattern="[A-Za-z0-9_\-]+">
                         </div>
 
                         <div>
@@ -155,17 +159,17 @@
 
                         <div>
                             <label for="detail-ip">Instance IP</label>
-                            <input type="text" id="detail-ip" value="">
+                            <input type="text" id="detail-ip" value="" maxlength="15" pattern="[\d\.]+" title="Only numbers and dots allowed" inputmode="numeric">
                         </div>
 
                         <div>
                             <label for="detail-port">Port Number</label>
-                            <input type="number" id="detail-port" value="">
+                            <input type="number" id="detail-port" value="" min="1" max="65535" inputmode="numeric">
                         </div>
 
                         <div>
                             <label for="detail-db-user">Database Username</label>
-                            <input type="text" id="detail-db-user" value="">
+                            <input type="text" id="detail-db-user" value="" maxlength="100" pattern="[A-Za-z0-9_\-]+">
                         </div>
 
                         <div>
@@ -175,7 +179,7 @@
 
                         <div>
                             <label for="detail-db-name">Database Name</label>
-                            <input type="text" id="detail-db-name" value="">
+                            <input type="text" id="detail-db-name" value="" maxlength="100" pattern="[A-Za-z0-9_\-]+">
                         </div>
 
                         <div class="status-field">
@@ -252,7 +256,7 @@
                             </select>
 
                             <label for="schedule-path">Path</label>
-                            <input type="text" id="schedule-path" placeholder="/tmp/backups" value="/tmp/backups" readonly>
+                            <input type="text" id="schedule-path" placeholder="D:\backup" value="D:\backup" maxlength="50">
 
                             <label for="schedule-datetime">Backup Date &amp; Time</label>
                             <input type="datetime-local" id="schedule-datetime">
@@ -278,7 +282,7 @@
                             </select>
 
                             <label for="backup-now-path">Path</label>
-                            <input type="text" id="backup-now-path" placeholder="/tmp/backups" value="/tmp/backups" readonly>
+                            <input type="text" id="backup-now-path" placeholder="D:\backup" value="D:\backup" maxlength="50">
 
                             <button type="button" id="btn-backup-now" class="btn primary">
                                 Backup Now
@@ -291,11 +295,11 @@
                 <!-- Backup History -->
                 <section class="card" id="backup-history-section">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <h3>Backup History</h3>
+                        <h3>All Backup History</h3>
                         <button type="button" id="btn-refresh-history" class="btn" style="padding:6px 14px;font-size:12px;">Refresh</button>
                     </div>
                     <div id="backup-history-container" style="max-height:300px;overflow-y:auto;">
-                        <p style="color:#94a3b8;font-size:13px;">Select an instance to view backup history.</p>
+                        <p style="color:#94a3b8;font-size:13px;">Loading backup history...</p>
                     </div>
                 </section>
 
@@ -311,7 +315,7 @@
                 <form id="add-instance-form">
                     <div class="form-row">
                         <label for="new-instance-name">Instance Name</label>
-                        <input type="text" id="new-instance-name" placeholder="ICARD" required>
+                        <input type="text" id="new-instance-name" placeholder="ICARD" required maxlength="100" pattern="[A-Za-z0-9_\-]+" title="Letters, numbers, hyphens and underscores only">
                     </div>
                     <div class="form-row">
                         <label for="new-db-type">Database Type</label>
@@ -323,27 +327,23 @@
                     </div>
                     <div class="form-row">
                         <label for="new-instance-ip">Instance IP</label>
-                        <input type="text" id="new-instance-ip" placeholder="10.180.18.2" required>
+                        <input type="text" id="new-instance-ip" placeholder="10.180.18.2" required maxlength="15" pattern="[\d\.]+" title="Only numbers and dots allowed (e.g. 10.180.18.2)" inputmode="numeric">
                     </div>
                     <div class="form-row">
                         <label for="new-port-number">Port Number</label>
-                        <input type="number" id="new-port-number" placeholder="3306" required>
+                        <input type="number" id="new-port-number" placeholder="3306" required min="1" max="65535" inputmode="numeric">
                     </div>
                     <div class="form-row">
                         <label for="new-db-user">Database Username</label>
-                        <input type="text" id="new-db-user" placeholder="root" required>
+                        <input type="text" id="new-db-user" placeholder="root" required maxlength="100" pattern="[A-Za-z0-9_\-]+" title="Letters, numbers, hyphens and underscores only">
                     </div>
                     <div class="form-row">
                         <label for="new-db-password">Database Password</label>
-                        <input type="password" id="new-db-password" placeholder="Enter password" required>
+                        <input type="password" id="new-db-password" placeholder="Enter password" required maxlength="255">
                     </div>
                     <div class="form-row">
                         <label for="new-db-name">Database Name</label>
-                        <input type="text" id="new-db-name" placeholder="icard_db" required>
-                    </div>
-                    <div class="form-row form-row-top">
-                        <label for="new-remark">Remarks</label>
-                        <textarea id="new-remark" placeholder="e.g. Production ERP database, critical system..." rows="3"></textarea>
+                        <input type="text" id="new-db-name" placeholder="icard_db" required maxlength="100" pattern="[A-Za-z0-9_\-]+" title="Letters, numbers, hyphens and underscores only">
                     </div>
                     <div id="connection-result" class="hidden" style="margin-bottom:16px;"></div>
                     <div class="form-actions">

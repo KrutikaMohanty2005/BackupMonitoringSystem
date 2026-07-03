@@ -19,6 +19,7 @@ INSERT IGNORE INTO users (id, username, password) VALUES (1, 'admin', 'scrypt:32
 -- 2. Instances Table
 CREATE TABLE IF NOT EXISTS instances (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    serial_no INT NOT NULL DEFAULT 0,
     name VARCHAR(100) NOT NULL,
     ip VARCHAR(50) NOT NULL,
     port INT NOT NULL,

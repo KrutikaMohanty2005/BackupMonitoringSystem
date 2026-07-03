@@ -78,17 +78,18 @@ body {
    ========================================================================== */
 .stats-container {
     display: flex;
-    gap: 20px;
-    margin: 20px;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
 }
 
 .stat-card {
     flex: 1;
-    min-width: 150px;
+    min-width: 120px;
     background: white;
-    border-radius: 16px;
+    border-radius: 14px;
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.07);
-    padding: 22px 20px;
+    padding: 18px 16px;
     text-align: center;
     border: 1px solid rgba(15, 23, 42, 0.06);
     cursor: pointer;
@@ -555,19 +556,26 @@ textarea {
    RESULT SECTION (STAT CARD TABLE)
    ========================================================================== */
 #resultSection {
-    margin: 0 20px 20px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9998;
+}
+
+#resultSection .modal-card {
     background: white;
-    border-radius: 16px;
-    padding: 20px 24px;
-    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
-    border: 1px solid rgba(15, 23, 42, 0.04);
+    border-radius: 18px;
+    padding: 28px 32px;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .result-section-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
+    margin-bottom: 18px;
+    flex-shrink: 0;
 }
 
 .result-section-header h3 {
@@ -581,12 +589,17 @@ textarea {
     background: none;
     border: none;
     color: #94a3b8;
-    font-size: 22px;
+    font-size: 28px;
     cursor: pointer;
-    padding: 0 4px;
-    border-radius: 6px;
+    padding: 0 6px;
+    border-radius: 8px;
     line-height: 1;
     transition: color 0.2s ease, background 0.2s ease;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .result-close-btn:hover {

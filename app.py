@@ -114,6 +114,21 @@ def check_db(conn):
     return None
 
 
+def get_next_serial_no(cursor):
+    """Get the next available serial number."""
+    cursor.execute("SELECT COALESCE(MAX(serial_no), 0) + 1 AS next_no FROM instances")
+    return cursor.fetchone()['next_no']
+
+
+def reorder_serial_numbers(cursor, conn):
+    """Reorder serial numbers sequentially after delete."""
+    cursor.execute("SELECT id FROM instances ORDER BY id ASC")
+    rows = cursor.fetchall()
+    for idx, row in enumerate(rows, start=1):
+        cursor.execute("UPDATE instances SET serial_no = %s WHERE id = %s", (idx, row['id']))
+    conn.commit()
+
+
 def test_socket_connection(ip, port, timeout=3):
     """Test TCP connectivity to a host:port. Returns (is_alive, reason, response_ms)."""
     try:
@@ -514,6 +529,7 @@ def get_instances():
         """
         SELECT
             id,
+            serial_no,
             name,
             ip,
             port,
@@ -529,6 +545,7 @@ def get_instances():
             COALESCE(db_password, '') AS db_password,
             COALESCE(db_name, '') AS db_name
         FROM instances
+        ORDER BY serial_no ASC
         """
     )
     rows = cursor.fetchall()
@@ -618,15 +635,16 @@ def add_instance():
 
     try:
         cursor = conn.cursor()
+        next_serial = get_next_serial_no(cursor)
         cursor.execute(
-            "INSERT INTO instances (name, ip, port, db_type, status, db_user, db_password, db_name, last_backup_remark) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            (name, ip, int(port), db_type, initial_status, db_user, db_password, db_name, final_remark)
+            "INSERT INTO instances (serial_no, name, ip, port, db_type, status, db_user, db_password, db_name, last_backup_remark) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (next_serial, name, ip, int(port), db_type, initial_status, db_user, db_password, db_name, final_remark)
         )
         new_id = cursor.lastrowid
         conn.commit()
         cursor.execute(
             """
-            SELECT id, name, ip, port, db_type, status,
+            SELECT id, serial_no, name, ip, port, db_type, status,
                    COALESCE(last_backup_duration, '') AS last_backup_duration,
                    COALESCE(last_backup_size, '') AS last_backup_size,
                    COALESCE(last_backup_remark, '') AS last_backup_remark,
@@ -668,10 +686,14 @@ def delete_instance(instance_id):
         cursor.execute("DELETE FROM instances WHERE id=%s", (instance_id,))
         affected = cursor.rowcount
         conn.commit()
+        if affected == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Instance not found."}), 404
+        # Reorder serial numbers after delete
+        reorder_serial_numbers(cursor, conn)
         cursor.close()
         conn.close()
-        if affected == 0:
-            return jsonify({"error": "Instance not found."}), 404
         return jsonify({"message": "Deleted"})
     except Exception as err:
         logging.error(f"Delete instance {instance_id} failed: {err}")
@@ -737,7 +759,7 @@ def update_instance(instance_id):
 
         cursor.execute(
             """
-            SELECT id, name, ip, port, db_type, status,
+            SELECT id, serial_no, name, ip, port, db_type, status,
                    COALESCE(last_backup_duration, '') AS last_backup_duration,
                    COALESCE(last_backup_size, '') AS last_backup_size,
                    COALESCE(last_backup_remark, '') AS last_backup_remark,
@@ -899,6 +921,74 @@ def get_backups():
 
 
 # ============================================================================
+# ROUTE: DELETE BACKUP
+# ============================================================================
+
+@app.route('/api/backups/<int:backup_id>', methods=['DELETE'])
+def delete_backup(backup_id):
+    conn = get_db_connection()
+    db_error = check_db(conn)
+    if db_error:
+        return db_error
+
+    try:
+        cursor = conn.cursor()
+        # First get the backup record to find the file path
+        cursor.execute("SELECT path FROM backups WHERE id=%s", (backup_id,))
+        backup = cursor.fetchone()
+        
+        if not backup:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Backup record not found."}), 404
+        
+        backup_path = backup['path']
+        file_deleted = False
+        file_error = None
+        
+        # Try to delete the physical file(s)
+        if backup_path and os.path.exists(backup_path):
+            try:
+                os.remove(backup_path)
+                file_deleted = True
+                logging.info(f"Deleted backup file: {backup_path}")
+            except OSError as err:
+                file_error = str(err)
+                logging.warning(f"Could not delete file {backup_path}: {err}")
+        
+        # Also try to delete .gz version if original doesn't exist
+        if not file_deleted and backup_path:
+            gz_path = backup_path + '.gz'
+            if os.path.exists(gz_path):
+                try:
+                    os.remove(gz_path)
+                    file_deleted = True
+                    logging.info(f"Deleted backup file: {gz_path}")
+                except OSError as err:
+                    file_error = str(err)
+                    logging.warning(f"Could not delete file {gz_path}: {err}")
+        
+        # Delete the database record
+        cursor.execute("DELETE FROM backups WHERE id=%s", (backup_id,))
+        affected = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        msg = "Backup record deleted."
+        if file_deleted:
+            msg += f" File removed from disk."
+        elif backup_path:
+            msg += f" File not found on disk (may have been removed already)."
+        
+        return jsonify({"message": msg, "file_deleted": file_deleted})
+    except Exception as err:
+        logging.error(f"Delete backup {backup_id} failed: {err}")
+        conn.close()
+        return jsonify({"error": "Failed to delete backup record."}), 500
+
+
+# ============================================================================
 # ROUTE: BACKUP NOW
 # ============================================================================
 
@@ -1005,4 +1095,7 @@ def schedule_backup(instance_id):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')), debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true')
+    port = int(os.getenv('PORT', '5000'))
+    print(f"Starting Backup Monitoring System on http://127.0.0.1:{port}", flush=True)
+    print(f"Local network: http://192.168.1.13:{port}", flush=True)
+    app.run(host='0.0.0.0', port=port, debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true')
