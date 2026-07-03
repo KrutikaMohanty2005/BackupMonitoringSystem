@@ -5,14 +5,21 @@ let loadedInstances = [];
 let activeInstanceId = null;
 let instanceBackupCounts = {};
 let instanceResponseTimes = {};
+let csrfToken = '';
 
 // =============================================================================
 // UTILITY: AUTHENTICATED FETCH
 // =============================================================================
 async function authFetch(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        if (!options.headers) options.headers = {};
+        if (typeof options.headers === 'object' && !(options.headers instanceof Headers)) {
+            options.headers['X-CSRF-Token'] = csrfToken;
+        }
+    }
     const res = await fetch(url, options);
     if (res.status === 401) {
-        // Session expired - redirect to login
         dashboardContainer?.classList.add('hidden');
         loginContainer?.classList.remove('hidden');
         loginContainer.style.opacity = '1';
@@ -680,6 +687,7 @@ if (loginForm) {
 
             if (res.ok && data.success) {
                 if (errorMessage) errorMessage.classList.add('hidden');
+                csrfToken = data.csrf_token || '';
 
                 loginContainer.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
                 loginContainer.style.opacity    = '0';

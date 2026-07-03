@@ -39,6 +39,7 @@ def authenticated_client(client):
     with client.session_transaction() as sess:
         sess['user_id'] = 1
         sess['username'] = 'admin'
+        sess['csrf_token'] = 'test-csrf-token'
     yield client
 
 
@@ -256,7 +257,8 @@ class TestRoutes:
         """Test add instance with invalid data."""
         response = authenticated_client.post('/api/instances',
             data=json.dumps({'name': '', 'ip': '', 'port': ''}),
-            content_type='application/json'
+            content_type='application/json',
+            headers={'X-CSRF-Token': 'test-csrf-token'}
         )
         assert response.status_code in [400, 503]
 

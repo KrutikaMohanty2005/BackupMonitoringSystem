@@ -9,6 +9,7 @@ import gzip
 import math
 import random
 import shutil
+import secrets
 import threading
 from functools import wraps
 from flask import Flask, jsonify, request, send_from_directory, session
@@ -77,6 +78,28 @@ def login_required(f):
             return jsonify({"success": False, "message": "Authentication required."}), 401
         return f(*args, **kwargs)
     return decorated_function
+
+
+def csrf_protect(f):
+    """Decorator to require a valid CSRF token for state-changing requests (POST/PUT/DELETE)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({"success": False, "message": "Authentication required."}), 401
+        token = request.headers.get('X-CSRF-Token') or (request.get_json(silent=True) or {}).get('_csrf_token')
+        if not token or token != session.get('csrf_token'):
+            return jsonify({"success": False, "message": "Invalid or missing CSRF token."}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route('/api/csrf-token', methods=['GET'])
+@login_required
+def get_csrf_token():
+    """Generate and return a CSRF token tied to the user session."""
+    token = secrets.token_hex(32)
+    session['csrf_token'] = token
+    return jsonify({"csrf_token": token})
 
 
 # ============================================================================
@@ -680,8 +703,10 @@ def login():
     if password_ok:
         session['user_id'] = user.get('id')
         session['username'] = username
+        csrf_token = secrets.token_hex(32)
+        session['csrf_token'] = csrf_token
         safe_user = {k: v for k, v in user.items() if k != 'password'}
-        return jsonify({"success": True, "user": safe_user})
+        return jsonify({"success": True, "user": safe_user, "csrf_token": csrf_token})
     return jsonify({"success": False, "message": "Invalid login"}), 401
 
 
@@ -755,7 +780,7 @@ def get_instances():
 # ============================================================================
 
 @app.route('/api/instances', methods=['POST'])
-@login_required
+@csrf_protect
 def add_instance():
     conn = get_db_connection()
     db_error = check_db(conn)
@@ -848,7 +873,7 @@ def add_instance():
 # ============================================================================
 
 @app.route('/api/instances/<int:instance_id>', methods=['DELETE'])
-@login_required
+@csrf_protect
 def delete_instance(instance_id):
     conn = get_db_connection()
     db_error = check_db(conn)
@@ -904,7 +929,7 @@ def delete_instance(instance_id):
 # ============================================================================
 
 @app.route('/api/instances/<int:instance_id>', methods=['PUT'])
-@login_required
+@csrf_protect
 def update_instance(instance_id):
     conn = get_db_connection()
     db_error = check_db(conn)
@@ -1208,7 +1233,7 @@ def get_backups():
 # ============================================================================
 
 @app.route('/api/backups/<int:backup_id>', methods=['DELETE'])
-@login_required
+@csrf_protect
 def delete_backup(backup_id):
     logging.info(f"DELETE request received for backup_id={backup_id}")
     conn = get_db_connection()
@@ -1279,7 +1304,7 @@ def delete_backup(backup_id):
 
 @app.route('/api/instances/<int:instance_id>/backup-now', methods=['POST'])
 @rate_limit(max_requests=3, window_seconds=120)
-@login_required
+@csrf_protect
 def backup_now(instance_id):
     conn = get_db_connection()
     db_error = check_db(conn)
@@ -1327,7 +1352,7 @@ def backup_now(instance_id):
 # ============================================================================
 
 @app.route('/api/instances/<int:instance_id>/schedule-backup', methods=['POST'])
-@login_required
+@csrf_protect
 def schedule_backup(instance_id):
     conn = get_db_connection()
     db_error = check_db(conn)
