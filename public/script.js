@@ -102,7 +102,7 @@ function dismissToast(toast) {
 async function refreshDashboard() {
     await fetchInstances();
     await loadStats();
-    await loadAllBackups();
+    await loadBackupHistory();
     if (activeInstanceId) {
         loadBackupHistory(activeInstanceId);
     }
@@ -220,17 +220,16 @@ function renderInstancesList() {
 // BACKUP COUNTS
 // =============================================================================
 async function fetchBackupCounts() {
-    instanceBackupCounts = {};
-    for (const inst of loadedInstances) {
-        try {
-            const res = await authFetch(`/api/instances/${inst.id}/backups`);
-            if (res.ok) {
-                const backups = await res.json();
-                instanceBackupCounts[inst.id] = backups.length;
-            }
-        } catch {
-            instanceBackupCounts[inst.id] = 0;
-        }
+    try {
+        const res = await authFetch('/api/stats/backup-counts');
+        if (!res.ok) return;
+        const counts = await res.json();
+        instanceBackupCounts = {};
+        loadedInstances.forEach(inst => {
+            instanceBackupCounts[inst.id] = counts[String(inst.id)] || 0;
+        });
+    } catch {
+        instanceBackupCounts = {};
     }
 }
 
@@ -381,56 +380,6 @@ function formatTimestamp(date) {
     return `${day}-${mon}-${yr} ${String(hrs).padStart(2, '0')}:${min}:${sec} ${ampm}`;
 }
 
-// Helper: seeded pseudo-random based on instance ID for consistent but varied values
-function seededRandom(seed) {
-    let x = Math.sin(seed * 9301 + 49297) * 233280;
-    return x - Math.floor(x);
-}
-
-// Helper: generate varied duration based on instance ID
-function generateVariedDuration(instanceId) {
-    const r = seededRandom(instanceId);
-    if (r < 0.2) {
-        const sec = Math.floor(r * 180 + 30);
-        return `0 min ${sec} sec`;
-    } else if (r < 0.5) {
-        const min = Math.floor(r * 4 + 1);
-        const sec = Math.floor(r * 50 + 10);
-        return `${min} min ${sec} sec`;
-    } else if (r < 0.8) {
-        const min = Math.floor(r * 8 + 2);
-        const sec = Math.floor(r * 50 + 10);
-        return `${min} min ${sec} sec`;
-    } else {
-        const min = Math.floor(r * 15 + 5);
-        const sec = Math.floor(r * 55 + 10);
-        return `${min} min ${sec} sec`;
-    }
-}
-
-// Helper: generate varied file size based on instance ID
-function generateVariedSize(instanceId) {
-    const r = seededRandom(instanceId + 7);
-    if (r < 0.2) return `${Math.floor(r * 500 + 50)} KB`;
-    if (r < 0.6) return `${(r * 9 + 1).toFixed(1)} MB`;
-    if (r < 0.85) return `${(r * 40 + 5).toFixed(1)} MB`;
-    return `${(r * 2 + 0.5).toFixed(2)} GB`;
-}
-
-// Helper: get a realistic recent timestamp (hoursAgo = how many hours back)
-function getRecentTimestamp(hoursAgo) {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - Math.round(hoursAgo * 60));
-    return formatTimestamp(d);
-}
-
-// Helper: get a future timestamp (hoursFromNow)
-function getFutureTimestamp(hoursFromNow) {
-    const d = new Date();
-    d.setHours(d.getHours() + hoursFromNow);
-    return formatTimestamp(d);
-}
-
 // Helper: check if a backup date string is older than 2 days
 function isBackupOld(dateStr) {
     try {
@@ -577,11 +526,11 @@ function showResults(title, data) {
                     <td style="font-size:12px;">${escapeHtml(duration)}</td>
                     <td style="font-size:12px;">${escapeHtml(size)}</td>
                     <td><span style="color:${statusColor};font-weight:600;">${escapeHtml(item.status)}</span></td>
-                    <td style="text-align:center;"><button onclick="deleteBackupFromModal(${item.id})" style="background:#ef4444;color:white;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Delete</button></td>
                 `;
             } else {
                 tr.innerHTML = `
-                    <td style="font-weight:600;">${escapeHtml(item.serial_no)}. ${escapeHtml(item.name)}</td>
+                    <td style="font-weight:600;">${escapeHtml(item.serial_no)}</td>
+                    <td>${escapeHtml(item.name)}</td>
                     <td>${escapeHtml(item.ip)}</td>
                     <td>${escapeHtml(item.db_type)}</td>
                     <td>${escapeHtml(item.status)}</td>
@@ -1264,7 +1213,7 @@ async function deleteBackup(backupId) {
             return;
         }
         showToast(data.message || 'Backup deleted.', 'success');
-        await loadAllBackups();
+        await loadBackupHistory();
         await loadStats();
     } catch (err) {
         showToast('Failed to delete backup.', 'error');
@@ -1282,7 +1231,7 @@ async function deleteBackupFromModal(backupId) {
         }
         showToast(data.message || 'Backup deleted.', 'success');
         closeResultSection();
-        await loadAllBackups();
+        await loadBackupHistory();
         await loadStats();
     } catch (err) {
         showToast('Failed to delete backup.', 'error');
@@ -1290,14 +1239,15 @@ async function deleteBackupFromModal(backupId) {
 }
 
 // =============================================================================
-// BACKUP HISTORY - ALL BACKUPS
+// BACKUP HISTORY
 // =============================================================================
 const backupHistoryContainer = document.getElementById('backup-history-container');
 
-async function loadAllBackups() {
+async function loadBackupHistory(instanceId) {
     if (!backupHistoryContainer) return;
     try {
-        const res = await authFetch('/api/backups');
+        const url = instanceId ? `/api/instances/${instanceId}/backups` : '/api/backups';
+        const res = await authFetch(url);
         if (!res.ok) return;
         const backups = await res.json();
 
@@ -1306,9 +1256,13 @@ async function loadAllBackups() {
             return;
         }
 
+        const showInstance = !instanceId;
+
         let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
         html += '<thead><tr style="border-bottom:2px solid #e2e8f0;">';
-        html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Instance</th>';
+        if (showInstance) {
+            html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Instance</th>';
+        }
         html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Date & Time</th>';
         html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Type</th>';
         html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Duration</th>';
@@ -1322,10 +1276,12 @@ async function loadAllBackups() {
             const execTime = b.execution_time ? new Date(b.execution_time).toLocaleString() : 'N/A';
             const statusColor = b.status === 'Completed' ? '#10b981' : b.status === 'Incomplete' ? '#f59e0b' : b.status === 'Failed' ? '#ef4444' : '#64748b';
             const fileName = b.path ? b.path.split(/[/\\]/).pop() : 'N/A';
-            const duration = b.duration && b.duration.trim() ? b.duration : generateVariedDuration(b.id || 0);
-            const size = b.file_size && b.file_size.trim() ? b.file_size : generateVariedSize(b.id || 0);
+            const duration = b.duration && b.duration.trim() ? b.duration : 'N/A';
+            const size = b.file_size && b.file_size.trim() ? b.file_size : 'N/A';
             html += `<tr style="border-bottom:1px solid #f1f5f9;">`;
-            html += `<td style="padding:8px 10px;color:#1e293b;font-weight:600;">${escapeHtml(b.name || 'Unknown')}</td>`;
+            if (showInstance) {
+                html += `<td style="padding:8px 10px;color:#1e293b;font-weight:600;">${escapeHtml(b.name || 'Unknown')}</td>`;
+            }
             html += `<td style="padding:8px 10px;color:#1e293b;">${escapeHtml(execTime)}</td>`;
             html += `<td style="padding:8px 10px;"><span style="background:#eff6ff;color:#2563eb;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">${escapeHtml(b.backup_type)}</span></td>`;
             html += `<td style="padding:8px 10px;color:#475569;font-size:12px;">${escapeHtml(duration)}</td>`;
@@ -1339,61 +1295,12 @@ async function loadAllBackups() {
         html += '</tbody></table>';
         backupHistoryContainer.innerHTML = html;
     } catch (err) {
-        console.error('Failed to load all backups:', err);
-        backupHistoryContainer.innerHTML = '<p style="color:#ef4444;font-size:13px;">Failed to load backup history.</p>';
-    }
-}
-
-async function loadBackupHistory(instanceId) {
-    if (!backupHistoryContainer) return;
-    try {
-        const res = await authFetch(`/api/instances/${instanceId}/backups`);
-        if (!res.ok) return;
-        const backups = await res.json();
-
-        if (!backups || backups.length === 0) {
-            backupHistoryContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;padding:10px 0;">No backup records found.</p>';
-            return;
-        }
-
-        let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
-        html += '<thead><tr style="border-bottom:2px solid #e2e8f0;">';
-        html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Date & Time</th>';
-        html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Type</th>';
-        html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Duration</th>';
-        html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Size</th>';
-        html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Location</th>';
-        html += '<th style="text-align:left;padding:8px 10px;color:#64748b;font-weight:700;">Status</th>';
-        html += '<th style="text-align:center;padding:8px 10px;color:#64748b;font-weight:700;">Action</th>';
-        html += '</tr></thead><tbody>';
-
-        backups.forEach(b => {
-            const execTime = b.execution_time ? new Date(b.execution_time).toLocaleString() : 'N/A';
-            const statusColor = b.status === 'Completed' ? '#10b981' : b.status === 'Incomplete' ? '#f59e0b' : b.status === 'Failed' ? '#ef4444' : '#64748b';
-            const fileName = b.path ? b.path.split(/[/\\]/).pop() : 'N/A';
-            const duration = b.duration && b.duration.trim() ? b.duration : generateVariedDuration(b.id || 0);
-            const size = b.file_size && b.file_size.trim() ? b.file_size : generateVariedSize(b.id || 0);
-            html += `<tr style="border-bottom:1px solid #f1f5f9;">`;
-            html += `<td style="padding:8px 10px;color:#1e293b;">${escapeHtml(execTime)}</td>`;
-            html += `<td style="padding:8px 10px;"><span style="background:#eff6ff;color:#2563eb;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">${escapeHtml(b.backup_type)}</span></td>`;
-            html += `<td style="padding:8px 10px;color:#475569;font-size:12px;">${escapeHtml(duration)}</td>`;
-            html += `<td style="padding:8px 10px;color:#475569;font-size:12px;">${escapeHtml(size)}</td>`;
-            html += `<td style="padding:8px 10px;color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(b.path)}">${escapeHtml(fileName)}</td>`;
-            html += `<td style="padding:8px 10px;"><span style="color:${statusColor};font-weight:600;">${escapeHtml(b.status)}</span></td>`;
-            html += `<td style="padding:8px 10px;text-align:center;"><button onclick="deleteBackup(${b.id})" style="background:#ef4444;color:white;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Delete</button></td>`;
-            html += '</tr>';
-        });
-
-        html += '</tbody></table>';
-        backupHistoryContainer.innerHTML = html;
-    } catch (err) {
-        console.error('Failed to load backup history:', err);
         backupHistoryContainer.innerHTML = '<p style="color:#ef4444;font-size:13px;">Failed to load backup history.</p>';
     }
 }
 
 document.getElementById('btn-refresh-history')?.addEventListener('click', () => {
-    loadAllBackups();
+    loadBackupHistory();
 });
 
 // =============================================================================

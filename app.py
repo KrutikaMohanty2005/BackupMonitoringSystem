@@ -6,7 +6,7 @@ import subprocess
 import re
 import logging
 import gzip
-import math
+import io
 import random
 import shutil
 import secrets
@@ -91,15 +91,6 @@ def csrf_protect(f):
             return jsonify({"success": False, "message": "Invalid or missing CSRF token."}), 403
         return f(*args, **kwargs)
     return decorated_function
-
-
-@app.route('/api/csrf-token', methods=['GET'])
-@login_required
-def get_csrf_token():
-    """Generate and return a CSRF token tied to the user session."""
-    token = secrets.token_hex(32)
-    session['csrf_token'] = token
-    return jsonify({"csrf_token": token})
 
 
 # ============================================================================
@@ -300,36 +291,6 @@ def ensure_indexes(conn):
         cursor.close()
     except Exception as err:
         logging.warning(f"Could not create indexes: {err}")
-
-
-def generate_placeholder_duration(seed):
-    """Generate a consistent placeholder duration based on a seed value."""
-    x = math.sin(seed * 9301 + 49297) * 233280
-    r = x - math.floor(x)
-    if r < 0.3:
-        sec = int(r * 200 + 12)
-        return f"0 min {sec} sec"
-    elif r < 0.7:
-        m = int(r * 5 + 1)
-        sec = int(r * 50 + 5)
-        return f"{m} min {sec} sec"
-    else:
-        m = int(r * 15 + 3)
-        sec = int(r * 55 + 10)
-        return f"{m} min {sec} sec"
-
-
-def generate_placeholder_size(seed):
-    """Generate a consistent placeholder file size based on a seed value."""
-    x = math.sin((seed + 7) * 9301 + 49297) * 233280
-    r = x - math.floor(x)
-    if r < 0.2:
-        return f"{int(r * 500 + 50)} KB"
-    if r < 0.6:
-        return f"{(r * 9 + 1):.1f} MB"
-    if r < 0.85:
-        return f"{(r * 40 + 5):.1f} MB"
-    return f"{(r * 2 + 0.5):.2f} GB"
 
 
 def test_socket_connection(ip, port, timeout=3):
@@ -643,7 +604,6 @@ def logout():
 @app.route('/favicon.ico')
 def favicon():
     # Return a minimal 1x1 ICO file to prevent 404 errors
-    import io
     # Minimal valid ICO file (1x1 pixel, white)
     ico_data = bytes([
         0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 32, 0,
@@ -1173,12 +1133,6 @@ def get_instance_backups(instance_id):
     cursor.close()
     conn.close()
 
-    for row in data:
-        if not row.get('duration'):
-            row['duration'] = generate_placeholder_duration(row.get('id', 0))
-        if not row.get('file_size'):
-            row['file_size'] = generate_placeholder_size(row.get('id', 0))
-
     return jsonify(data)
 
 
@@ -1218,12 +1172,6 @@ def get_backups():
     data = cursor.fetchall()
     cursor.close()
     conn.close()
-
-    for row in data:
-        if not row.get('duration'):
-            row['duration'] = generate_placeholder_duration(row.get('id', 0))
-        if not row.get('file_size'):
-            row['file_size'] = generate_placeholder_size(row.get('id', 0))
 
     return jsonify(data)
 
