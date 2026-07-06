@@ -130,6 +130,16 @@ def check_scheduled_backups():
                     cursor2.close()
                     
                     if instance:
+                        is_alive, reason, resp_ms = test_socket_connection(instance['ip'], instance['port'])
+                        if not is_alive:
+                            cursor.execute(
+                                "UPDATE backups SET status='Skipped' WHERE id=%s",
+                                (backup['id'],)
+                            )
+                            conn.commit()
+                            logging.warning(f"Scheduled backup {backup['id']} skipped for {instance['name']}: {reason}")
+                            continue
+
                         success, result = execute_backup(
                             instance, backup['path'], conn, cursor,
                             location_type=backup['location_type'],
@@ -507,7 +517,7 @@ def execute_backup(instance, backup_folder, conn, cursor, location_type='Local D
     seconds = int(elapsed_seconds % 60)
     duration_str = f"{minutes} min {seconds} sec"
 
-    backup_status = 'Completed' if not backup_error else 'Incomplete'
+    backup_status = 'Completed' if not backup_error else 'Failed'
 
     if backup_file:
         try:
@@ -1433,6 +1443,12 @@ def backup_now(instance_id):
         cursor.close()
         conn.close()
         return jsonify({"success": False, "message": "Instance not found."}), 404
+
+    is_alive, reason, resp_ms = test_socket_connection(instance['ip'], instance['port'])
+    if not is_alive:
+        cursor.close()
+        conn.close()
+        return jsonify({"success": False, "message": f"Instance is disconnected. Backup skipped. Reason: {reason}"}), 400
 
     success, result = execute_backup(instance, backup_folder, conn, cursor, location_type)
 

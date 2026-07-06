@@ -248,6 +248,12 @@ function selectInstance(id) {
 
     populateDetailsForm(inst);
     loadBackupHistory(activeInstanceId);
+
+    // Show instance details section
+    const detailsSection = document.getElementById('instance-details-section');
+    if (detailsSection) {
+        detailsSection.classList.remove('hidden');
+    }
 }
 
 function populateDetailsForm(inst) {
@@ -415,6 +421,17 @@ if (instancesListContainer) {
     });
 }
 
+// Close instance details section
+const btnCloseDetails = document.getElementById('btn-close-details');
+if (btnCloseDetails) {
+    btnCloseDetails.addEventListener('click', () => {
+        const detailsSection = document.getElementById('instance-details-section');
+        if (detailsSection) detailsSection.classList.add('hidden');
+        activeInstanceId = null;
+        document.querySelectorAll('.instance-card').forEach(c => c.classList.remove('active'));
+    });
+}
+
 // =============================================================================
 // STATS
 // =============================================================================
@@ -518,14 +535,15 @@ function showResults(title, data) {
                 const execTime = item.execution_time ? new Date(item.execution_time).toLocaleString() : 'N/A';
                 const duration = item.duration && item.duration.trim() ? item.duration : generateVariedDuration(item.id || 0);
                 const size = item.file_size && item.file_size.trim() ? item.file_size : generateVariedSize(item.id || 0);
-                const statusColor = item.status === 'Completed' ? '#10b981' : item.status === 'Incomplete' ? '#f59e0b' : item.status === 'Failed' ? '#ef4444' : '#64748b';
+                const displayStatus = item.status === 'Incomplete' ? 'Failed' : item.status;
+                const statusColor = displayStatus === 'Completed' ? '#10b981' : displayStatus === 'Failed' ? '#ef4444' : '#64748b';
                 tr.innerHTML = `
                     <td style="font-weight:600;">${escapeHtml(item.name || 'Unknown')}</td>
                     <td>${escapeHtml(execTime)}</td>
                     <td><span style="background:#eff6ff;color:#2563eb;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">${escapeHtml(item.backup_type)}</span></td>
                     <td style="font-size:12px;">${escapeHtml(duration)}</td>
                     <td style="font-size:12px;">${escapeHtml(size)}</td>
-                    <td><span style="color:${statusColor};font-weight:600;">${escapeHtml(item.status)}</span></td>
+                    <td><span style="color:${statusColor};font-weight:600;">${escapeHtml(displayStatus)}</span></td>
                 `;
             } else {
                 tr.innerHTML = `
@@ -720,14 +738,19 @@ tabButtons.forEach(button => {
         subviews.forEach(view => {
             if (view.id === `${tabId}-view`) {
                 view.classList.remove('hidden');
-                view.style.opacity    = '0';
+                view.style.opacity = '0';
                 view.offsetHeight;
                 view.style.transition = 'opacity 0.3s ease';
-                view.style.opacity    = '1';
+                view.style.opacity = '1';
             } else {
                 view.classList.add('hidden');
             }
         });
+
+        // Load backup history when switching to that tab
+        if (tabId === 'backup-history') {
+            loadBackupHistory();
+        }
     });
 });
 
@@ -1274,7 +1297,8 @@ async function loadBackupHistory(instanceId) {
 
         backups.forEach(b => {
             const execTime = b.execution_time ? new Date(b.execution_time).toLocaleString() : 'N/A';
-            const statusColor = b.status === 'Completed' ? '#10b981' : b.status === 'Incomplete' ? '#f59e0b' : b.status === 'Failed' ? '#ef4444' : '#64748b';
+            const displayStatus = b.status === 'Incomplete' ? 'Failed' : b.status;
+            const statusColor = displayStatus === 'Completed' ? '#10b981' : displayStatus === 'Failed' ? '#ef4444' : '#64748b';
             const fileName = b.path ? b.path.split(/[/\\]/).pop() : 'N/A';
             const duration = b.duration && b.duration.trim() ? b.duration : 'N/A';
             const size = b.file_size && b.file_size.trim() ? b.file_size : 'N/A';
@@ -1287,7 +1311,7 @@ async function loadBackupHistory(instanceId) {
             html += `<td style="padding:8px 10px;color:#475569;font-size:12px;">${escapeHtml(duration)}</td>`;
             html += `<td style="padding:8px 10px;color:#475569;font-size:12px;">${escapeHtml(size)}</td>`;
             html += `<td style="padding:8px 10px;color:#475569;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(b.path)}">${escapeHtml(fileName)}</td>`;
-            html += `<td style="padding:8px 10px;"><span style="color:${statusColor};font-weight:600;">${escapeHtml(b.status)}</span></td>`;
+            html += `<td style="padding:8px 10px;"><span style="color:${statusColor};font-weight:600;">${escapeHtml(displayStatus)}</span></td>`;
             if (b.id) {
                 html += `<td style="padding:8px 10px;text-align:center;"><button onclick="deleteBackup(${b.id})" style="background:#ef4444;color:white;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Delete</button></td>`;
             } else {
@@ -1461,5 +1485,6 @@ logoutConfirm?.addEventListener('click', async () => {
 
     clearDetailsForm();
     document.getElementById('resultSection')?.classList.add('hidden');
+    document.getElementById('instance-details-section')?.classList.add('hidden');
     if (backupHistoryContainer) backupHistoryContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;">Loading backup history...</p>';
 });

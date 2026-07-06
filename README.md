@@ -2,6 +2,26 @@
 
 A comprehensive full-stack web application for monitoring and managing database backups across multiple instances. Built with Flask, MySQL, and modern web technologies.
 
+## Screenshots
+
+### Login Page
+![Login Page](screenshots/1-login.png)
+
+### Dashboard - Home
+![Dashboard Home](screenshots/2-dashboard-home.png)
+
+### Dashboard - Instance Details
+![Instance Details](screenshots/3-instance-details.png)
+
+### Configure Backup
+![Configure Backup](screenshots/4-configure-backup.png)
+
+### Backup History
+![Backup History](screenshots/5-backup-history.png)
+
+### Add New Instance
+![Add New Instance](screenshots/6-add-new-instance.png)
+
 ## Overview
 
 The Backup Monitoring System provides a centralized platform to:

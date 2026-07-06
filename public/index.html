@@ -63,6 +63,8 @@
         <nav class="tabs">
             <button class="active" data-tab="home">Home</button>
             <button data-tab="add-instance">Add New Instance</button>
+            <button data-tab="configure-backup">Configure Backup</button>
+            <button data-tab="backup-history">Backup History</button>
         </nav>
 
         <!-- Filtered Results Table (modal overlay) -->
@@ -94,6 +96,14 @@
             <!-- Left Sidebar -->
             <aside class="sidebar">
                 <h3>Instances</h3>
+                <div class="sidebar-filters">
+                    <input type="text" id="instance-search" placeholder="Search by name or IP..." autocomplete="off">
+                    <select id="status-filter">
+                        <option value="all">All Status</option>
+                        <option value="connected">Connected</option>
+                        <option value="disconnected">Disconnected</option>
+                    </select>
+                </div>
                 <div id="instances-list">
                     <div class="loading-text">Loading instances...</div>
                 </div>
@@ -125,9 +135,12 @@
                     </div>
                 </div>
 
-                <!-- Instance Details -->
-                <section class="card">
-                    <h3>Instance Details</h3>
+                <!-- Instance Details (hidden until an instance is clicked) -->
+                <section class="card hidden" id="instance-details-section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <h3>Instance Details</h3>
+                        <button type="button" id="btn-close-details" class="btn" style="padding:6px 14px;font-size:12px;">&times; Close</button>
+                    </div>
 
                     <div class="details-grid">
 
@@ -235,7 +248,13 @@
                     </div>
                 </section>
 
-                <!-- Configure Backup -->
+            </main>
+
+        </div>
+
+        <!-- Configure Backup View -->
+        <div id="configure-backup-view" class="container dashboard-subview hidden">
+            <main style="width:100%;">
                 <section class="card">
                     <h3>Configure Backup</h3>
 
@@ -288,8 +307,12 @@
 
                     </div>
                 </section>
+            </main>
+        </div>
 
-                <!-- Backup History -->
+        <!-- Backup History View -->
+        <div id="backup-history-view" class="container dashboard-subview hidden">
+            <main style="width:100%;">
                 <section class="card" id="backup-history-section">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <h3>All Backup History</h3>
@@ -306,13 +329,11 @@
                             <button type="button" id="btn-bulk-delete" class="btn" style="padding:4px 12px;font-size:12px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Delete Selected</button>
                         </div>
                     </div>
-                    <div id="backup-history-container" style="max-height:300px;overflow-y:auto;">
+                    <div id="backup-history-container" style="max-height:500px;overflow-y:auto;">
                         <p style="color:#94a3b8;font-size:13px;">Loading backup history...</p>
                     </div>
                 </section>
-
             </main>
-
         </div>
 
         <!-- Add New Instance Modal -->
