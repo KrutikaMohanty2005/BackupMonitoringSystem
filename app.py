@@ -1214,8 +1214,54 @@ def get_backups():
         """
     )
     data = cursor.fetchall()
+
+    db_paths = {row['path'] for row in data if row.get('path') and row['path'] != 'N/A'}
+
+    cursor.execute("SELECT id, name, backup_location FROM instances")
+    instances = cursor.fetchall()
     cursor.close()
     conn.close()
+
+    for inst in instances:
+        inst_name = inst.get('name', '')
+        inst_id = inst.get('id')
+        backup_folder = inst.get('backup_location') or BACKUP_DEFAULT_PATH
+        instance_subfolder = os.path.join(backup_folder, inst_name)
+
+        if not os.path.isdir(instance_subfolder):
+            continue
+
+        for fname in sorted(os.listdir(instance_subfolder), reverse=True):
+            if not fname.endswith(('.sql', '.sql.gz')):
+                continue
+            full_path = os.path.join(instance_subfolder, fname)
+            norm_path = os.path.normpath(full_path)
+            if any(os.path.normpath(p) == norm_path for p in db_paths):
+                continue
+            try:
+                stat = os.stat(full_path)
+                file_size_bytes = stat.st_size
+                file_mtime = datetime.datetime.fromtimestamp(stat.st_mtime)
+                size_str = format_file_size(file_size_bytes)
+            except OSError:
+                file_size_bytes = 0
+                file_mtime = datetime.datetime.now()
+                size_str = 'Unknown'
+
+            data.append({
+                'id': None,
+                'name': inst_name,
+                'instance_id': inst_id,
+                'backup_type': 'Immediate',
+                'location_type': 'Local Drive',
+                'path': full_path,
+                'duration': '',
+                'file_size': size_str,
+                'execution_time': file_mtime.strftime('%Y-%m-%d %H:%M:%S') if isinstance(file_mtime, datetime.datetime) else str(file_mtime),
+                'status': 'Completed',
+            })
+
+    data.sort(key=lambda x: x.get('execution_time') or '', reverse=True)
 
     return jsonify(data)
 

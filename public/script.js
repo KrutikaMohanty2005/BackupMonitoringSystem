@@ -1288,7 +1288,6 @@ async function loadBackupHistory(instanceId) {
             html += `<td style="padding:8px 10px;color:#475569;font-size:12px;">${escapeHtml(size)}</td>`;
             html += `<td style="padding:8px 10px;color:#475569;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(b.path)}">${escapeHtml(fileName)}</td>`;
             html += `<td style="padding:8px 10px;"><span style="color:${statusColor};font-weight:600;">${escapeHtml(b.status)}</span></td>`;
-            html += `<td style="padding:8px 10px;"><span style="color:${statusColor};font-weight:600;">${escapeHtml(b.status)}</span></td>`;
             if (b.id) {
                 html += `<td style="padding:8px 10px;text-align:center;"><button onclick="deleteBackup(${b.id})" style="background:#ef4444;color:white;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Delete</button></td>`;
             } else {
