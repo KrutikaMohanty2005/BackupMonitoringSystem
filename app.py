@@ -1247,9 +1247,69 @@ def delete_backup(backup_id):
 
 
 # ============================================================================
+# ROUTE: BULK DELETE BACKUPS
+# ============================================================================
+@app.route('/api/backups/bulk-delete', methods=['POST'])
+@csrf_protect
+def bulk_delete_backups():
+    data = request.get_json()
+    if not data or 'ids' not in data:
+        return jsonify({"error": "No backup IDs provided."}), 400
+
+    ids = data['ids']
+    if not isinstance(ids, list) or len(ids) == 0:
+        return jsonify({"error": "Invalid backup IDs."}), 400
+
+    conn = get_db_connection()
+    db_error = check_db(conn)
+    if db_error:
+        return db_error
+
+    try:
+        cursor = conn.cursor()
+        deleted = 0
+        files_removed = 0
+
+        for backup_id in ids:
+            cursor.execute("SELECT path FROM backups WHERE id=%s", (backup_id,))
+            backup = cursor.fetchone()
+            if not backup:
+                continue
+
+            backup_path = backup['path']
+
+            if backup_path and os.path.exists(backup_path):
+                try:
+                    os.remove(backup_path)
+                    files_removed += 1
+                except OSError:
+                    pass
+            elif backup_path:
+                gz_path = backup_path + '.gz'
+                if os.path.exists(gz_path):
+                    try:
+                        os.remove(gz_path)
+                        files_removed += 1
+                    except OSError:
+                        pass
+
+            cursor.execute("DELETE FROM backups WHERE id=%s", (backup_id,))
+            deleted += cursor.rowcount
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({"message": f"{deleted} backup(s) deleted. {files_removed} file(s) removed from disk.", "deleted": deleted, "files_removed": files_removed})
+    except Exception as err:
+        logging.error(f"Bulk delete backups failed: {err}")
+        conn.close()
+        return jsonify({"error": "Failed to delete backups."}), 500
+
+
+# ============================================================================
 # ROUTE: BACKUP NOW
 # ============================================================================
-
 @app.route('/api/instances/<int:instance_id>/backup-now', methods=['POST'])
 @rate_limit(max_requests=3, window_seconds=120)
 @csrf_protect

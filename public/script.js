@@ -1278,7 +1278,7 @@ async function loadBackupHistory(instanceId) {
             const fileName = b.path ? b.path.split(/[/\\]/).pop() : 'N/A';
             const duration = b.duration && b.duration.trim() ? b.duration : 'N/A';
             const size = b.file_size && b.file_size.trim() ? b.file_size : 'N/A';
-            html += `<tr style="border-bottom:1px solid #f1f5f9;">`;
+            html += `<tr data-backup-id="${b.id}" style="border-bottom:1px solid #f1f5f9;">`;
             if (showInstance) {
                 html += `<td style="padding:8px 10px;color:#1e293b;font-weight:600;">${escapeHtml(b.name || 'Unknown')}</td>`;
             }
@@ -1301,6 +1301,121 @@ async function loadBackupHistory(instanceId) {
 
 document.getElementById('btn-refresh-history')?.addEventListener('click', () => {
     loadBackupHistory();
+});
+
+// =============================================================================
+// SELECT / BULK DELETE / EXPORT CSV
+// =============================================================================
+let selectMode = false;
+let selectedBackupIds = new Set();
+
+const btnSelectBackups = document.getElementById('btn-select-backups');
+const bulkDeleteBar = document.getElementById('bulk-delete-bar');
+const selectedCountEl = document.getElementById('selected-count');
+const btnCancelSelect = document.getElementById('btn-cancel-select');
+const btnBulkDelete = document.getElementById('btn-bulk-delete');
+const btnExportCsv = document.getElementById('btn-export-csv');
+
+function toggleSelectMode() {
+    selectMode = !selectMode;
+    selectedBackupIds.clear();
+    updateBulkDeleteBar();
+    renderSelectCheckboxes();
+    if (btnSelectBackups) btnSelectBackups.textContent = selectMode ? 'Done' : 'Select';
+}
+
+function updateBulkDeleteBar() {
+    if (!bulkDeleteBar || !selectedCountEl) return;
+    if (selectMode) {
+        bulkDeleteBar.style.display = 'flex';
+        selectedCountEl.textContent = selectedBackupIds.size;
+    } else {
+        bulkDeleteBar.style.display = 'none';
+    }
+}
+
+function renderSelectCheckboxes() {
+    const rows = backupHistoryContainer?.querySelectorAll('tr[data-backup-id]');
+    rows?.forEach(row => {
+        const existingCb = row.querySelector('.backup-select-cb');
+        if (selectMode && !existingCb) {
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'backup-select-cb';
+            cb.style.cssText = 'cursor:pointer;';
+            cb.dataset.id = row.dataset.backupId;
+            cb.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    selectedBackupIds.add(row.dataset.backupId);
+                } else {
+                    selectedBackupIds.delete(row.dataset.backupId);
+                }
+                updateBulkDeleteBar();
+            });
+            row.prepend(Object.assign(document.createElement('td'), { style: 'padding:8px 10px;text-align:center;' }));
+            row.firstChild.appendChild(cb);
+        } else if (!selectMode && existingCb) {
+            existingCb.closest('td')?.remove();
+        }
+    });
+}
+
+btnSelectBackups?.addEventListener('click', toggleSelectMode);
+
+btnCancelSelect?.addEventListener('click', () => {
+    selectMode = false;
+    selectedBackupIds.clear();
+    updateBulkDeleteBar();
+    if (btnSelectBackups) btnSelectBackups.textContent = 'Select';
+    loadBackupHistory(activeInstanceId);
+});
+
+btnBulkDelete?.addEventListener('click', async () => {
+    if (selectedBackupIds.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedBackupIds.size} backup(s)? This will also remove the files from disk.`)) return;
+
+    try {
+        const res = await authFetch('/api/backups/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: Array.from(selectedBackupIds) })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || 'Failed to delete backups.', 'error');
+            return;
+        }
+        showToast(`${data.deleted || selectedBackupIds.size} backup(s) deleted.`, 'success');
+        selectedBackupIds.clear();
+        selectMode = false;
+        updateBulkDeleteBar();
+        if (btnSelectBackups) btnSelectBackups.textContent = 'Select';
+        loadBackupHistory(activeInstanceId);
+        loadStats();
+    } catch (err) {
+        showToast('Failed to delete backups.', 'error');
+    }
+});
+
+btnExportCsv?.addEventListener('click', () => {
+    const rows = backupHistoryContainer?.querySelectorAll('tr[data-backup-id]');
+    if (!rows || rows.length === 0) {
+        showToast('No backup records to export.', 'warning');
+        return;
+    }
+    let csv = 'Date & Time,Type,Duration,Size,Location,Status\n';
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const vals = Array.from(cells).slice(1).map(c => c.textContent.trim().replace(/"/g, '""'));
+        csv += `"${vals.join('","')}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'backup_history.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('CSV exported successfully.', 'success');
 });
 
 // =============================================================================
