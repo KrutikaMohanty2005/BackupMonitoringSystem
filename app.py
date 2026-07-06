@@ -1130,8 +1130,52 @@ def get_instance_backups(instance_id):
         (instance_id,)
     )
     data = cursor.fetchall()
+
+    cursor.execute("SELECT name, backup_location FROM instances WHERE id=%s", (instance_id,))
+    inst = cursor.fetchone()
     cursor.close()
     conn.close()
+
+    db_paths = {row['path'] for row in data if row.get('path') and row['path'] != 'N/A'}
+
+    backup_folder = BACKUP_DEFAULT_PATH
+    if inst and inst.get('backup_location'):
+        backup_folder = inst['backup_location']
+
+    instance_name = inst['name'] if inst else ''
+    instance_subfolder = os.path.join(backup_folder, instance_name) if instance_name else ''
+
+    if instance_subfolder and os.path.isdir(instance_subfolder):
+        for fname in sorted(os.listdir(instance_subfolder), reverse=True):
+            if not fname.endswith(('.sql', '.sql.gz')):
+                continue
+            full_path = os.path.join(instance_subfolder, fname)
+            norm_path = os.path.normpath(full_path)
+            if any(os.path.normpath(p) == norm_path for p in db_paths):
+                continue
+            try:
+                stat = os.stat(full_path)
+                file_size_bytes = stat.st_size
+                file_mtime = datetime.datetime.fromtimestamp(stat.st_mtime)
+                size_str = format_file_size(file_size_bytes)
+            except OSError:
+                file_size_bytes = 0
+                file_mtime = datetime.datetime.now()
+                size_str = 'Unknown'
+
+            data.append({
+                'id': None,
+                'instance_id': instance_id,
+                'backup_type': 'Immediate',
+                'location_type': 'Local Drive',
+                'path': full_path,
+                'duration': '',
+                'file_size': size_str,
+                'execution_time': file_mtime.strftime('%Y-%m-%d %H:%M:%S') if isinstance(file_mtime, datetime.datetime) else str(file_mtime),
+                'status': 'Completed',
+            })
+
+    data.sort(key=lambda x: x.get('execution_time') or '', reverse=True)
 
     return jsonify(data)
 
