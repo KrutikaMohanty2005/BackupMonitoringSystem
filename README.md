@@ -24,11 +24,6 @@ The Backup Monitoring System provides a centralized platform to:
 - **User Authentication** - Secure login system with username/password
 - **Multi-Computer Support** - 5+ computers can backup to one central server
 
-### Screenshots
-
-#### Backup History with Delete Option
-![Backup History - Delete, Select, Export CSV](screenshots/backup-history-delete.png)
-
 ### Connection Diagnostics
 When checking or adding an instance, the system shows real socket-level reasons:
 | Error Code | Meaning |
